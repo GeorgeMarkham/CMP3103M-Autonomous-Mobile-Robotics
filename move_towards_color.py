@@ -7,6 +7,7 @@ from cv2 import namedWindow, cvtColor, imshow
 from cv2 import destroyAllWindows, startWindowThread
 from cv2 import COLOR_BGR2GRAY
 import cv2
+import numpy as np
 from numpy import mean, array
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
@@ -66,36 +67,46 @@ class robot_wheel_controller:
     def img_callback(self, data):
         img = self.bridge.imgmsg_to_cv2(data, 'bgr8')
 
-        mask = cv2.inRange(img, array([0,0,0], 'uint8'), array([0,255,0], 'uint8'))
-        img_out = cv2.bitwise_and(img, img, mask=mask)
+        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        lower = np.array([ 110,  90,  90])
+        upper = np.array([130, 110, 110])
+        mask = cv2.inRange(hsv, lower, upper)
 
-        img_out_grey = cv2.cvtColor(img_out,cv2.COLOR_BGR2GRAY)
+        h,w,_ = img.shape
 
-        _,img_out_thresh = cv2.threshold(img_out_grey,0,255,cv2.THRESH_BINARY+cv2.THRESH_OTSU)
+        M = cv2.moments(mask)
+        if M['m00'] > 0:
+            cx = int(M['m10']/M['m00'])
+            cy = int(M['m01']/M['m00'])
 
-        contours, hierarchy = cv2.findContours(img_out_thresh,cv2.RETR_TREE,cv2.CHAIN_APPROX_SIMPLE)
+            print cx
 
-        cv2.drawContours(img, contours, -1, (0,255,0), 3)
+            err = cx - w/2
+            twist = Twist()
+            twist.linear.x = 0.2
+            twist.angular.z = -float(err) / 100
+            self.vel_pub.publish(twist)
 
-        img_height,img_width = img_out_grey.shape
-        turn = Twist()
-        if(len(contours) > 0 ):
 
-            contour = contours[0][0][0]
+        #img_height,img_width = img_out_grey.shape
+        #turn = Twist()
+        #if(len(contours) > 0 ):
+        #
+        #    contour = contours[0][0][0]
+        #
+        #    if(contour[0] > ((img_width/2)-15) and  contour[0] < ((img_width/2)+15)):
+        #        
+        #        self.vel_change(data=1.0)
+        #
+        #    elif(contour[0] > (img_width/2)):
+        #        turn.angular.z = -0.5
+        #    elif (contour[0] < (img_width/2)):
+        #        turn.angular.z = 0.5
+        #
+        #else:
+        #    turn.angular.z = -0.5
 
-            if(contour[0] > ((img_width/2)-15) and  contour[0] < ((img_width/2)+15)):
-                
-                self.vel_change(data=1.0)
-
-            elif(contour[0] > (img_width/2)):
-                turn.angular.z = -0.5
-            elif (contour[0] < (img_width/2)):
-                turn.angular.z = 0.5
-
-        else:
-            turn.angular.z = -0.5
-
-        self.vel_pub.publish(turn)
+        #self.vel_pub.publish(turn)
 
         imshow("Robot view", img)
 
