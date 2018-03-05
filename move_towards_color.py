@@ -67,14 +67,17 @@ class robot_wheel_controller:
     def img_callback(self, data):
         img = self.bridge.imgmsg_to_cv2(data, 'bgr8')
 
-        hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
-        lower = np.array([ 110,  90,  90])
-        upper = np.array([130, 110, 110])
-        mask = cv2.inRange(hsv, lower, upper)
+        #hsv = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        lower = np.array([ 0,  15,  0])
+        upper = np.array([0, 250, 0])
+        mask = cv2.inRange(img, lower, upper)
 
         h,w,_ = img.shape
 
         M = cv2.moments(mask)
+
+        print(M)
+
         if M['m00'] > 0:
             cx = int(M['m10']/M['m00'])
             cy = int(M['m01']/M['m00'])
@@ -86,28 +89,10 @@ class robot_wheel_controller:
             twist.linear.x = 0.2
             twist.angular.z = -float(err) / 100
             self.vel_pub.publish(twist)
-
-
-        #img_height,img_width = img_out_grey.shape
-        #turn = Twist()
-        #if(len(contours) > 0 ):
-        #
-        #    contour = contours[0][0][0]
-        #
-        #    if(contour[0] > ((img_width/2)-15) and  contour[0] < ((img_width/2)+15)):
-        #        
-        #        self.vel_change(data=1.0)
-        #
-        #    elif(contour[0] > (img_width/2)):
-        #        turn.angular.z = -0.5
-        #    elif (contour[0] < (img_width/2)):
-        #        turn.angular.z = 0.5
-        #
-        #else:
-        #    turn.angular.z = -0.5
-
-        #self.vel_pub.publish(turn)
-
+        else:
+            twist = Twist()
+            twist.angular.z = 0.5
+            self.vel_pub.publish(twist)
         imshow("Robot view", img)
 
 
