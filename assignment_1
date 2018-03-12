@@ -60,11 +60,11 @@ class assignment_1:
         mv_goal.header.frame_id = 'map'
         mv_goal.pose = Pose()
         mv_goal.pose.position = Point()
-        mv_goal.pose.position.x = 1.0
-        mv_goal.pose.position.y = 2.0
+        mv_goal.pose.position.x = 0.0
+        mv_goal.pose.position.y = 0.0
         mv_goal.pose.position.z = 0.0
         mv_goal.pose.orientation = Quaternion()
-        mv_goal.pose.orientation.w = 0.0
+        mv_goal.pose.orientation.w = 1.0
 
         self.goal_pub.publish(mv_goal)
     def odom_callback(self, odom_data):
