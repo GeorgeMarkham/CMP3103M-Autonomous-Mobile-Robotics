@@ -48,7 +48,7 @@ class assignment_1:
         pass
 
     def map_callback(self, map_data):
-        np.savetxt('map_data', map_data.data)
+        #np.savetxt('map_data', map_data.data)
         self.origin_x = map_data.info.origin.position.x
         self.origin_y = map_data.info.origin.position.y
         self.origin_z = map_data.info.origin.position.z
@@ -74,7 +74,7 @@ class assignment_1:
 
         map = np.array(map_data.data).reshape(map_h, map_w)
 
-        np.savetxt('map_data', map)
+        #np.savetxt('map_data', map)
         print(map_w)
         print(map_h)
 
