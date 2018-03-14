@@ -21,9 +21,10 @@ from nav_msgs.msg import Odometry
 class assignment_1:
     def __init__(self):
         rate = rospy.Rate(1)
-
+        self.time = rospy.Time()
+        print(self.time)
         #WINDOW TO SHOW WHAT THE ROBOT SEES#
-        #cv2.namedWindow("Robot view", 1)
+        cv2.namedWindow("Map", 1)
 
         self.bridge = CvBridge()
         
@@ -52,21 +53,54 @@ class assignment_1:
         self.origin_y = map_data.info.origin.position.y
         self.origin_z = map_data.info.origin.position.z
 
-        now = rospy.get_rostime()
+        # now = rospy.get_rostime()
 
 
-        mv_goal = PoseStamped()
-        mv_goal.header.stamp = now
-        mv_goal.header.frame_id = 'map'
-        mv_goal.pose = Pose()
-        mv_goal.pose.position = Point()
-        mv_goal.pose.position.x = 0.0
-        mv_goal.pose.position.y = 0.0
-        mv_goal.pose.position.z = 0.0
-        mv_goal.pose.orientation = Quaternion()
-        mv_goal.pose.orientation.w = 1.0
+        # mv_goal = PoseStamped()
+        # mv_goal.header.stamp = self.time
+        # mv_goal.header.frame_id = 'map'
+        # mv_goal.pose = Pose()
+        # mv_goal.pose.position = Point()
+        # mv_goal.pose.position.x = 1.0
+        # mv_goal.pose.position.y = 1.0
+        # mv_goal.pose.position.z = 0.0
+        # mv_goal.pose.orientation = Quaternion()
+        # mv_goal.pose.orientation.w = 1.0
+        # #print(mv_goal)
+        # self.goal_pub.publish(mv_goal)
 
-        self.goal_pub.publish(mv_goal)
+        map_w = map_data.info.width
+        map_h = map_data.info.height
+
+        map = np.array(map_data.data).reshape(map_h, map_w)
+
+        np.savetxt('map_data', map)
+        print(map_w)
+        print(map_h)
+
+
+        self.width = map_data.info.width
+        self.height = map_data.info.height
+        self.resolution = map_data.info.resolution
+        self.length = len(map_data.data)
+        #self.min_line = []
+
+        #creat an mat to load costmap
+        costmap_mat = np.zeros((self.height,self.width), dtype = "uint8")
+
+        for i in range(1,self.height):
+            for j in range(1,self.width):
+                costmap_mat[i-1, j-1] = 255-int(float(map_data.data[(i-1)*self.width+j])/100*255)
+
+        ret,binary_map = cv2.threshold(costmap_mat,127,255,cv2.THRESH_BINARY)
+
+        binary_map = cv2.flip(binary_map, 0)
+
+        cv2.imshow("Map", binary_map)
+
+        np.savetxt('map_data_txt', binary_map)
+        np.savez('map_data', binary_map)
+
     def odom_callback(self, odom_data):
         #print(odom_data.pose)
         pass
@@ -80,7 +114,6 @@ class assignment_1:
 rospy.init_node('assignment_1')
 iv = assignment_1()
 rospy.spin()
-
 
 
 #LASER SCAN OBSTACLE AVOIDANCE#
