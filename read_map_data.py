@@ -89,7 +89,7 @@ for center in centroids:
 
 cv2.imshow("Sements", map_color)
 
-#cv2.imshow("Map Original", map)
+cv2.imshow("Map Original", map)
 #cv2.imshow("Map Eroded", map_dilated)
 #cv2.imshow("Map Edges", map_edges)
 #cv2.imshow('Map Hough',map)
