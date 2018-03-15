@@ -49,46 +49,30 @@ class assignment_1:
 
     def map_callback(self, map_data):
         #np.savetxt('map_data', map_data.data)
-        self.origin_x = map_data.info.origin.position.x
-        self.origin_y = map_data.info.origin.position.y
-        self.origin_z = map_data.info.origin.position.z
-
-        # now = rospy.get_rostime()
-
-
-        # mv_goal = PoseStamped()
-        # mv_goal.header.stamp = self.time
-        # mv_goal.header.frame_id = 'map'
-        # mv_goal.pose = Pose()
-        # mv_goal.pose.position = Point()
-        # mv_goal.pose.position.x = 1.0
-        # mv_goal.pose.position.y = 1.0
-        # mv_goal.pose.position.z = 0.0
-        # mv_goal.pose.orientation = Quaternion()
-        # mv_goal.pose.orientation.w = 1.0
-        # #print(mv_goal)
-        # self.goal_pub.publish(mv_goal)
+        origin_x = map_data.info.origin.position.x
+        origin_y = map_data.info.origin.position.y
+        #origin_z = map_data.info.origin.position.z
 
         map_w = map_data.info.width
         map_h = map_data.info.height
+        resolution = map_data.info.resolution
+
+        #print(map_data.info.origin)
+
 
         map = np.array(map_data.data).reshape(map_h, map_w)
 
+        offset = (origin_x, origin_y)
+
         #np.savetxt('map_data', map)
-        #print(map_w)
-        #print(map_h)
-
-
-        width = map_data.info.width
-        height = map_data.info.height
 
         length = len(map_data.data)
-        map = np.zeros((height,width), dtype = "uint8")
+        map = np.zeros((map_h,map_w), dtype = "uint8")
         
 
-        for i in range(1,height):
-            for j in range(1,width):
-                map[i-1, j-1] = 255-int(float(map_data.data[(i-1)*width+j])/100*255)
+        for i in range(1,map_h):
+            for j in range(1,map_w):
+                map[i-1, j-1] = 255-int(float(map_data.data[(i-1)*map_w+j])/100*255)
         map = cv2.flip(map, 0)
         ret,binary_map = cv2.threshold(map,127,255,cv2.THRESH_BINARY)
         #binary_map = cv2.flip(binary_map, 0)
@@ -100,13 +84,40 @@ class assignment_1:
 
         color_map = cv2.cvtColor(map, cv2.COLOR_GRAY2BGR)
 
+        area_centers = []
+
         for center in map_centers:
             cv2.line(color_map, center, center, (0,0,255), 3)
+            #print(center[0], center[1])
+            #print(self.get_world_pt((center[1], center[0]), (-5.62,-6.2), resolution))
+            area_centers.append(self.get_world_pt((center[1], center[0]), offset, resolution))
+
+        print(area_centers)
+        #print(self.get_world_pt((0,0), (-5.62,-6.2), resolution))
+        #print(self.get_world_pt((map_h/2,map_w/2),offset,resolution))
+        #print(resolution)
 
         cv2.imshow("Map", color_map)
 
         np.savetxt('map_data_txt', binary_map)
         np.savez('map_data', binary_map)
+
+
+        # now = rospy.get_rostime()
+
+
+        mv_goal = PoseStamped()
+        mv_goal.header.stamp = rospy.get_rostime()
+        mv_goal.header.frame_id = "map"
+        mv_goal.pose = Pose()
+        mv_goal.pose.position = Point()
+        mv_goal.pose.position.x = area_centers[1][0]
+        mv_goal.pose.position.y = area_centers[1][1]
+        mv_goal.pose.orientation = Quaternion()
+        mv_goal.pose.orientation.w = 1.0
+        #print(mv_goal)
+        self.goal_pub.publish(mv_goal)
+
 
     def odom_callback(self, odom_data):
         #print(odom_data.pose)
@@ -192,8 +203,16 @@ class assignment_1:
                 center_pts.append(center)
         
         return center_pts
+    def get_world_pt(self, point, offset, resolution):
+        x_map = point[1]
+        y_map = point[0]
 
+        x_world = (x_map * resolution) + offset[0]
+        y_world = (y_map * resolution) + offset[1]
 
+        world_pt = (x_world, y_world)
+
+        return world_pt
 
 rospy.init_node('assignment_1')
 iv = assignment_1()
@@ -236,3 +255,6 @@ rospy.spin()
 #     move_msg.linear.x = 0.1
 #     move_msg.angular.z = 0.0
 #     self.vel_pub.publish(move_msg)
+
+
+#The goal sent to the navfn planner is off the global costmap. Planning will always fail to this goal.
