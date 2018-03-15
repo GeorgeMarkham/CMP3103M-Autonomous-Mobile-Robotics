@@ -16,7 +16,7 @@ from sensor_msgs.msg import LaserScan
 from nav_msgs.msg import OccupancyGrid
 from nav_msgs.msg import Odometry
 
-
+import tf.transformations
 
 class assignment_1:
     def __init__(self):
@@ -106,17 +106,20 @@ class assignment_1:
         # now = rospy.get_rostime()
 
 
-        mv_goal = PoseStamped()
-        mv_goal.header.stamp = rospy.get_rostime()
-        mv_goal.header.frame_id = "map"
-        mv_goal.pose = Pose()
-        mv_goal.pose.position = Point()
-        mv_goal.pose.position.x = area_centers[1][0]
-        mv_goal.pose.position.y = area_centers[1][1]
-        mv_goal.pose.orientation = Quaternion()
-        mv_goal.pose.orientation.w = 1.0
-        #print(mv_goal)
-        self.goal_pub.publish(mv_goal)
+        pose = PoseStamped()
+        pose.header.stamp = rospy.Time.now()
+        pose.header.frame_id = "map"
+        pose.pose.position.x = 1.0
+        pose.pose.position.y = 0.0
+        pose.pose.position.z = 0.0
+
+        quaternion = tf.transformations.quaternion_from_euler(0.0, 0.0, 0.0)
+        pose.pose.orientation.x = quaternion[0]
+        pose.pose.orientation.y = quaternion[1]
+        pose.pose.orientation.z = quaternion[2]
+        pose.pose.orientation.w = quaternion[3]
+        print(pose)
+        self.goal_pub.publish(pose)
 
 
     def odom_callback(self, odom_data):
