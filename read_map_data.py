@@ -3,6 +3,8 @@ import numpy as np
 
 data = np.load('map_data.npz')
 
+
+original_map = cv2.cvtColor(np.array(data['arr_0']), cv2.COLOR_GRAY2BGR)
 map = np.array(data['arr_0'])
 
 h, w = map.shape
@@ -71,7 +73,7 @@ for center in centroids:
     if(x < 12 or y < 22 or x > 200 or y > 240 ):
         pass
     else:
-        cv2.line(map_color, (x,y), (x,y), (0,0,255), 5)
+        cv2.line(original_map, (x,y), (x,y), (0,0,255), 5)
 
 #markers = markers+1
 
@@ -87,9 +89,9 @@ for center in centroids:
 # cv2.imshow("map_unknown", map_unknown)
 #cv2.imshow("map_fg_invert", map_fg_invert)
 
-cv2.imshow("Sements", map_color)
+#cv2.imshow("Sements", map_color)
 
-cv2.imshow("Map Original", map)
+cv2.imshow("Map with points of interest", original_map)
 #cv2.imshow("Map Eroded", map_dilated)
 #cv2.imshow("Map Edges", map_edges)
 #cv2.imshow('Map Hough',map)
