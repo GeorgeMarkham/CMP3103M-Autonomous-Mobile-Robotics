@@ -24,11 +24,21 @@ import tf.transformations
 class assignment_1:
     def __init__(self):
         rate = rospy.Rate(1)
-        self.time = rospy.Time()
-        #print(self.time)
+
+        self.move_client = actionlib.SimpleActionClient('/turtlebot/move_base/', MoveBaseAction)
+        self.move_client.wait_for_server()
+        self.turn_count = 0
+        self.point_counter = 0
+
+        self.blue_found = False
+        self.green_Found = False
+        self.red_found = False
+        self.yellow_found = False
+
+        self.moving = False
         #WINDOW TO SHOW WHAT THE ROBOT SEES#
         cv2.namedWindow("Map", 1)
-        cv2.namedWindow("Robot view", 1)
+        #cv2.namedWindow("Robot view", 1)
         self.bridge = CvBridge()
         
         cv2.startWindowThread()
@@ -40,33 +50,178 @@ class assignment_1:
         #SET SUBSCRIBERS#
         self.image_sub = rospy.Subscriber("/turtlebot/camera/rgb/image_raw", Image, self.img_callback)
         self.map_sub = rospy.Subscriber("/turtlebot/move_base/global_costmap/costmap", OccupancyGrid, self.map_callback)
+        self.laser_scan_sub = rospy.Subscriber("/turtlebot/scan", LaserScan, self.laser_scan_callback)
         self.odom_sub = rospy.Subscriber("/turtlebot/odom", Odometry, self.odom_callback)
 
     def img_callback(self, img_data):
         img = self.bridge.imgmsg_to_cv2(img_data, 'bgr8')
+        #cv2.imshow("Robot view", img)
+        
+        blue = [np.array([15, 0, 0]), np.array([250, 0, 0])]
+        green = [np.array([ 0,  15,  0]), np.array([0, 250, 0])]
+        red = [np.array([0, 0, 15]), np.array([0, 0, 250])]
+        yellow = [np.array([0, 172, 172]), np.array([0, 206, 206])]
 
-        cv2.imshow("Robot view", img)
+        h,w,_ = img.shape
+        
+        M_blue = cv2.moments(cv2.inRange(img, blue[0], blue[1]))
+        M_green = cv2.moments(cv2.inRange(img, green[0], green[1]))
+        M_red = cv2.moments(cv2.inRange(img, red[0], red[1]))
+        M_yellow = cv2.moments(cv2.inRange(img, yellow[0], yellow[1]))
+
+        #print(M)
+        if M_blue['m00'] > 0 and not self.blue_found:
+            self.move_client.cancel_goal()
+            self.moving = True
+            print("Found blue!")
+            print(M_red['m00'])
+
+            if M_blue['m00'] >= 5000000.0:
+                self.moving = False
+                self.blue_found = True
+
+            cx = int(M_blue['m10']/M_blue['m00'])
+            cy = int(M_blue['m01']/M_blue['m00'])
+
+            print cx
+
+            err = cx - w/2
+            twist = Twist()
+            twist.linear.x = 0.4
+            twist.angular.z = -float(err) / 100
+            self.vel_pub.publish(twist)
+        elif M_green['m00'] > 0 and not self.green_found:
+            self.move_client.cancel_goal()
+            self.moving = True
+            print("Found green!")
+            print(M_green['m00'])
+
+            if M_green['m00'] >= 5000000.0:
+                self.moving = False
+                self.green_found = True
+
+            cx = int(M_green['m10']/M_green['m00'])
+            cy = int(M_green['m01']/M_green['m00'])
+
+            print cx
+
+            err = cx - w/2
+            twist = Twist()
+            twist.linear.x = 0.4
+            twist.angular.z = -float(err) / 100
+            self.vel_pub.publish(twist)
+        elif M_red['m00'] > 0 and not self.red_found:
+            self.move_client.cancel_goal()
+            self.moving = True
+            print("Found Red!")
+            print(M_red['m00'])
+
+            if M_red['m00'] >= 5000000.0:
+                self.moving = False
+                self.red_found = True
+
+            cx = int(M_red['m10']/M_red['m00'])
+            cy = int(M_red['m01']/M_red['m00'])
+
+            print cx
+
+            err = cx - w/2
+            twist = Twist()
+            twist.linear.x = 0.4
+            twist.angular.z = -float(err) / 100
+            self.vel_pub.publish(twist)
+        elif M_yellow['m00'] > 0 and not self.yellow_found:
+            self.move_client.cancel_goal()
+            self.moving = True
+            print("Found yellow!")
+            print(M_yellow['m00'])
+
+            if M_yellow['m00'] >= 5000000.0:
+                self.moving = False
+                self.yellow_found = True
+
+            cx = int(M_yellow['m10']/M_yellow['m00'])
+            cy = int(M_yellow['m01']/M_yellow['m00'])
+
+            print cx
+
+            err = cx - w/2
+            twist = Twist()
+            twist.linear.x = 0.4
+            twist.angular.z = -float(err) / 100
+            self.vel_pub.publish(twist)
+        elif self.turn_count == 0:
+            self.move_client.cancel_goal()
+            twist = Twist()
+            twist.angular.z = 0.5
+            self.vel_pub.publish(twist)
+            self.turn_count += 1
+            self.moving = False
+        elif (self.move_client.get_state == actionlib.SimpleGoalState.ACTIVE or self.move_client.get_state == actionlib.CommState.ACTIVE) and self.move_client.get_result():
+            self.point_counter += 1
+            print(self.point_counter)
+        elif self.move_client.get_state() == actionlib.TerminalState.ABORTED:
+            self.moving = False
+            #cv2.imshow("Robot view", img)
+        elif not self.moving:
+            try:
+                point = self.area_centers[self.point_counter]
+                print(point)
+                #result = self.navigate_to_point(point)
+
+                move_to = MoveBaseGoal()
+                move_to.target_pose.header.frame_id = "map"
+                move_to.target_pose.header.stamp = rospy.Time.now()
+                move_to.target_pose.pose.position.x = point[0]
+                move_to.target_pose.pose.position.y = point[1]
+                move_to.target_pose.pose.orientation.w = 1.0
+                self.move_client.send_goal(move_to)
+                self.moving = True
+                #res = self.move_client.wait_for_result()
+                #if res:
+                    # self.moving = False
+                    # self.point_counter += 1
+                    # print("turning...")
+                    # twist = Twist()
+                    # twist.angular.z = 0.5
+                    # self.vel_pub.publish(twist)
+                    # self.turn_count += 1
+                    # self.moving = False
+            except rospy.ROSInterruptException:
+                rospy.loginfo("Navigation test finished.")
+            #     if result:
+            #         print("Done:", point)
+            #         self.point_counter += 1
+            # except rospy.ROSInterruptException:
+            #     rospy.loginfo("Navigation test finished.")
+
+        #for point in area_centers:
+        #    try:
+        #        result = self.navigate_to_point(point)
+        #        if result:
+        #            print("Done:", point)
+        #    except rospy.ROSInterruptException:
+        #        rospy.loginfo("Navigation test finished.")
+        #else:
+        #    pass
 
         self.current_frame = img
 
+
     def map_callback(self, map_data):
-        #np.savetxt('map_data', map_data.data)
         origin_x = map_data.info.origin.position.x
         origin_y = map_data.info.origin.position.y
-        #origin_z = map_data.info.origin.position.z
 
         map_w = map_data.info.width
         map_h = map_data.info.height
         resolution = map_data.info.resolution
 
-        #print(map_data.info.origin)
 
 
         map = np.array(map_data.data).reshape(map_h, map_w)
 
         offset = (origin_x, origin_y)
 
-        #np.savetxt('map_data', map)
 
         length = len(map_data.data)
         map = np.zeros((map_h,map_w), dtype = "uint8")
@@ -77,113 +232,21 @@ class assignment_1:
                 map[i-1, j-1] = 255-int(float(map_data.data[(i-1)*map_w+j])/100*255)
         map = cv2.flip(map, 0)
         ret,binary_map = cv2.threshold(map,127,255,cv2.THRESH_BINARY)
-        #binary_map = cv2.flip(binary_map, 0)
-        #print(binary_map)
-        #cv2.imshow("Map", binary_map)
 
         map_centers = self.find_map_centers(binary_map)
 
 
         color_map = cv2.cvtColor(map, cv2.COLOR_GRAY2BGR)
 
-        area_centers = []
+        self.area_centers = []
 
         for center in map_centers:
             cv2.line(color_map, center, center, (0,0,255), 3)
-            #print(center[0], center[1])
-            #print(self.get_world_pt((center[1], center[0]), (-5.62,-6.2), resolution))
-            area_centers.append(self.get_world_pt((center[1], center[0]), offset, resolution))
+            self.area_centers.append(self.get_world_pt((center[1], center[0]), offset, resolution))
 
-        print(area_centers)
-        #print(self.get_world_pt((0,0), (-5.62,-6.2), resolution))
-        #print(self.get_world_pt((map_h/2,map_w/2),offset,resolution))
-        #print(resolution)
+        #print(self.area_centers)
 
         cv2.imshow("Map", color_map)
-
-
-        # now = rospy.get_rostime()
-
-
-        # pose = PoseStamped()
-        # pose.header.stamp = rospy.Time.now()
-        # pose.header.frame_id = "map"
-        # pose.pose.position.x = 0.0
-        # pose.pose.position.y = 0.0
-        # pose.pose.position.z = 0.0
-
-        # quaternion = tf.transformations.quaternion_from_euler(0.0, 0.0, 0.0)
-        # pose.pose.orientation.x = quaternion[0]
-        # pose.pose.orientation.y = quaternion[1]
-        # pose.pose.orientation.z = quaternion[2]
-        # pose.pose.orientation.w = quaternion[3]
-        # print(pose)
-        # self.goal_pub.publish(pose)
-
-        #self.goal_pub.publish(goal)
-        for point in area_centers:
-            try:
-                result = self.navigate_to_point(point)
-                if result:
-                    print("Done:", point)
-                    print("Looking for a color...")
-                    img = self.current_frame
-                    lower = np.array([ 0,  15,  0])
-                    upper = np.array([0, 250, 0])
-                    mask = cv2.inRange(img, lower, upper)
-
-                    h,w,_ = img.shape
-
-                    M = cv2.moments(mask)
-
-                    print(M)
-                    counter = 0
-                    if M['m00'] > 0:
-                        print("Found a color!")
-                        cx = int(M['m10']/M['m00'])
-                        cy = int(M['m01']/M['m00'])
-
-                        print cx
-
-                        err = cx - w/2
-                        twist = Twist()
-                        twist.linear.x = 0.2
-                        twist.angular.z = -float(err) / 100
-                        self.vel_pub.publish(twist)
-                    else:
-                        if counter == 0:
-                            twist = Twist()
-                            twist.angular.z = 0.5
-                            self.vel_pub.publish(twist)
-                            counter += 1
-            except rospy.ROSInterruptException:
-                rospy.loginfo("Navigation test finished.")
-        
-    def navigate_to_point(self, point):
-        self.currently_moving = True
-        move_client = actionlib.SimpleActionClient('/turtlebot/move_base/', MoveBaseAction)
-        move_client.wait_for_server()
-
-        move_to = MoveBaseGoal()
-        move_to.target_pose.header.frame_id = "map"
-        move_to.target_pose.header.stamp = rospy.Time.now()
-        move_to.target_pose.pose.position.x = point[0]
-        move_to.target_pose.pose.position.y = point[1]
-        move_to.target_pose.pose.orientation.w = 1.0
-
-        move_client.send_goal(move_to)
-        wait_result = move_client.wait_for_result()
-        if(move_client.get_state() == actionlib.TerminalState.ABORTED):
-            print("Plan aborted :(")
-            return move_client.get_state()
-
-        print(move_client.get_state())
-
-        if not wait_result:
-            rospy.logerr("Action server not available!")
-            rospy.signal_shutdown("Action server not available!")
-        else:
-            return move_client.get_result()
         
     def odom_callback(self, odom_data):
         #print(odom_data.pose)
@@ -264,6 +327,8 @@ class assignment_1:
         
         return center_pts
     def get_world_pt(self, point, offset, resolution):
+
+        #(0,0)
         x_map = point[1]
         y_map = point[0]
 
