@@ -3,6 +3,9 @@ import rospy
 import cv2
 import numpy as np
 from cv_bridge import CvBridge
+import actionlib
+from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+
 
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import PoseStamped
@@ -25,7 +28,7 @@ class assignment_1:
         #print(self.time)
         #WINDOW TO SHOW WHAT THE ROBOT SEES#
         cv2.namedWindow("Map", 1)
-
+        cv2.namedWindow("Robot view", 1)
         self.bridge = CvBridge()
         
         cv2.startWindowThread()
@@ -38,14 +41,13 @@ class assignment_1:
         self.image_sub = rospy.Subscriber("/turtlebot/camera/rgb/image_raw", Image, self.img_callback)
         self.map_sub = rospy.Subscriber("/turtlebot/move_base/global_costmap/costmap", OccupancyGrid, self.map_callback)
         self.odom_sub = rospy.Subscriber("/turtlebot/odom", Odometry, self.odom_callback)
-        self.point_cloud_sub = rospy.Subscriber("/turtlebot/camera/depth/points", PointCloud2, self.point_cloud_callback)
-        self.laser_scan_sub = rospy.Subscriber("/turtlebot/scan", LaserScan, self.laser_scan_callback)
 
     def img_callback(self, img_data):
-        #img = self.bridge.imgmsg_to_cv2(img_data, 'bgr8')
+        img = self.bridge.imgmsg_to_cv2(img_data, 'bgr8')
 
-        #cv2.imshow("Robot View", img)
-        pass
+        cv2.imshow("Robot view", img)
+
+        self.current_frame = img
 
     def map_callback(self, map_data):
         #np.savetxt('map_data', map_data.data)
@@ -99,37 +101,92 @@ class assignment_1:
 
         cv2.imshow("Map", color_map)
 
-        np.savetxt('map_data_txt', binary_map)
-        np.savez('map_data', binary_map)
-
 
         # now = rospy.get_rostime()
 
 
-        pose = PoseStamped()
-        pose.header.stamp = rospy.Time.now()
-        pose.header.frame_id = "map"
-        pose.pose.position.x = 1.0
-        pose.pose.position.y = 0.0
-        pose.pose.position.z = 0.0
+        # pose = PoseStamped()
+        # pose.header.stamp = rospy.Time.now()
+        # pose.header.frame_id = "map"
+        # pose.pose.position.x = 0.0
+        # pose.pose.position.y = 0.0
+        # pose.pose.position.z = 0.0
 
-        quaternion = tf.transformations.quaternion_from_euler(0.0, 0.0, 0.0)
-        pose.pose.orientation.x = quaternion[0]
-        pose.pose.orientation.y = quaternion[1]
-        pose.pose.orientation.z = quaternion[2]
-        pose.pose.orientation.w = quaternion[3]
-        print(pose)
-        self.goal_pub.publish(pose)
+        # quaternion = tf.transformations.quaternion_from_euler(0.0, 0.0, 0.0)
+        # pose.pose.orientation.x = quaternion[0]
+        # pose.pose.orientation.y = quaternion[1]
+        # pose.pose.orientation.z = quaternion[2]
+        # pose.pose.orientation.w = quaternion[3]
+        # print(pose)
+        # self.goal_pub.publish(pose)
 
+        #self.goal_pub.publish(goal)
+        for point in area_centers:
+            try:
+                result = self.navigate_to_point(point)
+                if result:
+                    print("Done:", point)
+                    print("Looking for a color...")
+                    img = self.current_frame
+                    lower = np.array([ 0,  15,  0])
+                    upper = np.array([0, 250, 0])
+                    mask = cv2.inRange(img, lower, upper)
 
+                    h,w,_ = img.shape
+
+                    M = cv2.moments(mask)
+
+                    print(M)
+                    counter = 0
+                    if M['m00'] > 0:
+                        print("Found a color!")
+                        cx = int(M['m10']/M['m00'])
+                        cy = int(M['m01']/M['m00'])
+
+                        print cx
+
+                        err = cx - w/2
+                        twist = Twist()
+                        twist.linear.x = 0.2
+                        twist.angular.z = -float(err) / 100
+                        self.vel_pub.publish(twist)
+                    else:
+                        if counter == 0:
+                            twist = Twist()
+                            twist.angular.z = 0.5
+                            self.vel_pub.publish(twist)
+                            counter += 1
+            except rospy.ROSInterruptException:
+                rospy.loginfo("Navigation test finished.")
+        
+    def navigate_to_point(self, point):
+        self.currently_moving = True
+        move_client = actionlib.SimpleActionClient('/turtlebot/move_base/', MoveBaseAction)
+        move_client.wait_for_server()
+
+        move_to = MoveBaseGoal()
+        move_to.target_pose.header.frame_id = "map"
+        move_to.target_pose.header.stamp = rospy.Time.now()
+        move_to.target_pose.pose.position.x = point[0]
+        move_to.target_pose.pose.position.y = point[1]
+        move_to.target_pose.pose.orientation.w = 1.0
+
+        move_client.send_goal(move_to)
+        wait_result = move_client.wait_for_result()
+        if(move_client.get_state() == actionlib.TerminalState.ABORTED):
+            print("Plan aborted :(")
+            return move_client.get_state()
+
+        print(move_client.get_state())
+
+        if not wait_result:
+            rospy.logerr("Action server not available!")
+            rospy.signal_shutdown("Action server not available!")
+        else:
+            return move_client.get_result()
+        
     def odom_callback(self, odom_data):
         #print(odom_data.pose)
-        pass
-    
-    def point_cloud_callback(self, point_data):
-        #print(point_data.data)
-        pass
-    def laser_scan_callback(self, laser_data):
         pass
 
     def find_map_centers(self, map):
