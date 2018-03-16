@@ -147,7 +147,7 @@ class assignment_1:
 
             err = cx - w/2
             twist = Twist()
-            twist.linear.x = 0.4
+            twist.linear.x = 0.2
             twist.angular.z = -float(err) / 100
             self.vel_pub.publish(twist)
         elif self.turn_count == 0:
@@ -251,6 +251,24 @@ class assignment_1:
     def odom_callback(self, odom_data):
         #print(odom_data.pose)
         pass
+
+    def laser_scan_callback(self, laser_data):
+        #print laser_data
+        scan_angle_min = laser_data.angle_min
+        scan_angle_max = laser_data.angle_max
+
+        laser_ranges = laser_data.ranges
+        ranges_length = len(laser_ranges)
+
+        should_turn = False
+        turn_direction = False # False = Left
+
+        for i in range(ranges_length):
+            if(laser_ranges[i] <= 1.3):
+                move = Twist()
+                move.angular.z = -1.0
+                self.vel_pub.publish(move)
+            
 
     def find_map_centers(self, map):
         original_map = map
