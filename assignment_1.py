@@ -53,22 +53,12 @@ class assignment:
         img = self.bridge.imgmsg_to_cv2(img_data, 'bgr8')
         cv2.imshow("Robot view", img)
         self.current_img = img
-            # If color is found move towards it, then move to the next point
-            #Else just move to the next point
-
-
-
-        if self.move_client.get_state() == actionlib.CommState.LOST or self.move_client.get_state() == actionlib.TerminalState.ABORTED:
+        if self.move_client.get_state() == actionlib.CommState.LOST or self.move_client.get_state() == actionlib.TerminalState.ABORTED or self.move_client.get_state() == actionlib.CommState.PREEMPTING:
+            print("ISSUE")
             #INCREMENT POINT_COUNTER
             self.point_counter += 1
             #SEND NEXT GOAL
-            move_to = MoveBaseGoal()
-            move_to.target_pose.header.frame_id = "map"
-            move_to.target_pose.header.stamp = rospy.Time.now()
-            move_to.target_pose.pose.position.x = self.area_centers[self.point_counter][0]
-            move_to.target_pose.pose.position.y = self.area_centers[self.point_counter][1]
-            move_to.target_pose.pose.orientation.w = 1.0
-            self.move_client.send_goal(move_to, done_cb=self.nav_done)
+            self.move_to_next_point()
 
 
 
@@ -245,7 +235,7 @@ class assignment:
         return
     def turn_right(self):
         turn_count = 0
-        while turn_count <= 4:
+        while turn_count <= 8:
             rospy.sleep(0.5)
             turn = Twist()
             turn.angular.z = -0.5
