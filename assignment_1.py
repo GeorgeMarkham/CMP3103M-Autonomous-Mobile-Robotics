@@ -1,3 +1,8 @@
+# CMP3103M - AUTONOMOUS MOBILE ROBOTICS #
+# ASSESSMENT 1 #
+# GEORGE MARKHAM #
+# MAR15561551 #
+
 import math
 import rospy
 import cv2
@@ -24,7 +29,8 @@ class assignment:
 
         self.move_client = actionlib.SimpleActionClient('/turtlebot/move_base/', MoveBaseAction)
         self.move_client.wait_for_server()
-        self.point_counter = 7
+        #Initialise point counter to 0 so it goes to the first point first
+        self.point_counter = 0
 
         self.blue_found = False
         self.green_found = False
@@ -33,7 +39,6 @@ class assignment:
 
         self.moving = False
         #WINDOW TO SHOW WHAT THE ROBOT SEES#
-        #cv2.namedWindow("Map", 1)
         cv2.namedWindow("Robot view", 1)
         self.bridge = CvBridge()
         
@@ -46,17 +51,20 @@ class assignment:
         #SET SUBSCRIBERS#
         self.image_sub = rospy.Subscriber("/turtlebot/camera/rgb/image_raw", Image, self.img_callback)
         self.map_sub = rospy.Subscriber("/turtlebot/move_base/global_costmap/costmap", OccupancyGrid, self.map_callback)
-       # self.laser_scan_sub = rospy.Subscriber("/turtlebot/scan", LaserScan, self.laser_scan_callback)
-       # self.odom_sub = rospy.Subscriber("/turtlebot/odom", Odometry, self.odom_callback)
     
     def img_callback(self, img_data):
+
+        # CONVERT THE IMG CALLBACK DATA TO BGR FORMAT, DISPLAY IT AND MAKE IT AVAILABLE TO THE WHOLE CLASS #
         img = self.bridge.imgmsg_to_cv2(img_data, 'bgr8')
         cv2.imshow("Robot view", img)
         self.current_img = img
+
+        #IF THERE'S AN ISSUE THEN MOVE ON TO THE NEXT GOAL #
         if self.move_client.get_state() == actionlib.CommState.LOST or self.move_client.get_state() == actionlib.TerminalState.ABORTED or self.move_client.get_state() == actionlib.CommState.PREEMPTING:
-            print("ISSUE")
-            #INCREMENT POINT_COUNTER
-            self.point_counter += 1
+            print("ISSUE at point:", self.point_counter)
+            #INCREMENT POINT_COUNTER IF IT'S STILL IN THE LIST
+            if self.point_counter + 1 < len(self.area_centers):
+                self.point_counter += 1
             #SEND NEXT GOAL
             self.move_to_next_point()
 
@@ -103,12 +111,13 @@ class assignment:
 
         self.move_to_next_point()
 
-        #cv2.imshow("Map", color_map)
+        
 
         
 
     def move_to_next_point(self):
         print "MOVE TO NEXT POINT"
+        print self.point_counter
         move_to = MoveBaseGoal()
         move_to.target_pose.header.frame_id = "map"
         move_to.target_pose.header.stamp = rospy.Time.now()
@@ -135,13 +144,18 @@ class assignment:
         M_green = cv2.moments(cv2.inRange(img, green[0], green[1]))
         M_red = cv2.moments(cv2.inRange(img, red[0], red[1]))
         M_yellow = cv2.moments(cv2.inRange(img, yellow[0], yellow[1]))
+
+        #INCREMENT POINT_COUNTER IF IT'S STILL IN THE LIST
+        if self.point_counter + 1 < len(self.area_centers):
+            self.point_counter += 1
+
         # Start looking for colors
         print "LOOKING..."
         if M_blue['m00'] > 0 and not self.blue_found:
             self.move_client.cancel_goal()
             self.moving = True
             print("Found blue!")
-            print(M_red['m00'])
+            print(M_blue['m00'])
 
             self.blue_found = True
 
@@ -187,12 +201,15 @@ class assignment:
             cy = int(M_red['m01']/M_red['m00'])
 
             print cx
-
-            err = cx - w/2
-            twist = Twist()
-            twist.linear.x = 0.4
-            twist.angular.z = -float(err) / 100
-            self.vel_pub.publish(twist)
+            while M_red < 9000000.0:
+                print("Moving to red")
+                self.move_client.cancel_goal()
+                err = cx - w/2
+                twist = Twist()
+                twist.linear.x = 0.4
+                twist.angular.z = -float(err) / 100
+                self.vel_pub.publish(twist)
+                rospy.sleep(1)
             self.move_to_next_point()
         elif M_yellow['m00'] > 0 and not self.yellow_found:
             self.move_client.cancel_goal()
@@ -216,13 +233,6 @@ class assignment:
         else:
             print "FOUND NOTHING"
             self.move_to_next_point()
-        #print self.move_client.get_state()
-
-        #INCREMENT POINT_COUNTER
-        self.point_counter += 1
-        
-        #SEND NEXT GOAL
-        #self.move_to_next_point()
         
     def turn_left(self):
         turn_count = 0
@@ -235,7 +245,7 @@ class assignment:
         return
     def turn_right(self):
         turn_count = 0
-        while turn_count <= 8:
+        while turn_count <= 4:
             rospy.sleep(0.5)
             turn = Twist()
             turn.angular.z = -0.5
@@ -244,15 +254,19 @@ class assignment:
         return
     #FUNCTIONS TO GET MAP COORDINATES OF INTEREST#
     def find_map_centers(self, map):
+
+        #Get 2 copies of the map, one for processing and one to keep as the original copie for checks and such
         original_map = map
         map = map
 
         h, w = map.shape
 
-        erosion_kernel = np.ones((8,8), np.uint8)
+        #Process the map to accentuate features
+        dilation_kernel = np.ones((8,8), np.uint8)
 
-        map_dilated = cv2.dilate(map, erosion_kernel, iterations=1)
+        map_dilated = cv2.dilate(map, dilation_kernel, iterations=1)
 
+        #Run a canny edge detector to find the outline of objects (specifically looking for walls)
         map_edges = cv2.Canny(map_dilated,100,200)
 
         minLineLength = 1
@@ -285,6 +299,8 @@ class assignment:
 
         opening_kernel = np.ones((3,3), np.uint8)
         map_opening = cv2.morphologyEx(binary_map, cv2.MORPH_OPEN, opening_kernel, iterations = 2)
+        
+        #Split the map into foreground and background
 
         map_bg = cv2.dilate(map_opening, opening_kernel, iterations = 3)
 
@@ -311,15 +327,15 @@ class assignment:
         for center in centers:
             x = int(center[0])
             y = int(center[1])
-            if(x < 12 or y < 22 or x > 200 or y > 240 or original_map[y][x] == 0):
+            #Check the point doesn't lie on an object or too close to an object
+            if(x < 12 or y < 22 or x > 200 or y > 240 or original_map[y][x] == 0 or original_map[x-5][y] == 0 or original_map[x+5][y] == 0 or map[x][y-5] == 10 or map[x][y+5] == 0):
                 pass
             else:
                 center_pts.append(center)
-
+        print len(center_pts)
         return center_pts
     def get_world_pt(self, point, offset, resolution):
 
-        #(0,0)
         x_map = point[1]
         y_map = point[0]
 
