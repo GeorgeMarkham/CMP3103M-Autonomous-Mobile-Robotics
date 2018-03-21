@@ -163,7 +163,7 @@ class assignment:
             M_red = cv2.moments(cv2.inRange(img, red[0], red[1]))
             print("Seen Red!")
             print(M_red['m00'])
-            if M_red['m00'] > 1300000:
+            if M_red['m00'] > 1700000:
                 self.red_found = True
                 print("Found Red!")
                 self.move_to_next_point()
