@@ -284,6 +284,7 @@ class assignment:
 
     def turn_left(self):
         turn_count = 0
+        #Send the command to turn left 4 times
         while turn_count <= 4:
             rospy.sleep(0.5)
             turn = Twist()
@@ -293,6 +294,7 @@ class assignment:
         return
     def turn_right(self):
         turn_count = 0
+        #Send the command to turn right 4 times
         while turn_count <= 4:
             rospy.sleep(0.5)
             turn = Twist()
