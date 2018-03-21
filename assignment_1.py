@@ -51,7 +51,7 @@ class assignment:
         #SET SUBSCRIBERS#
         self.image_sub = rospy.Subscriber("/turtlebot/camera/rgb/image_raw", Image, self.img_callback)
         self.map_sub = rospy.Subscriber("/turtlebot/move_base/global_costmap/costmap", OccupancyGrid, self.map_callback)
-    
+        self.odom_sub = rospy.Subscriber("/turtlebot/odom", Odometry, self.odom_callback)
     def img_callback(self, img_data):
 
         # CONVERT THE IMG CALLBACK DATA TO BGR FORMAT, DISPLAY IT AND MAKE IT AVAILABLE TO THE WHOLE CLASS #
@@ -68,6 +68,9 @@ class assignment:
             #SEND NEXT GOAL
             self.move_to_next_point()
 
+    def odom_callback(self, odom_data):
+        self.current_robot_point = odom_data.pose.pose.position
+        #print self.current_robot_point
 
 
     #MAP CALLBACK#
@@ -151,88 +154,119 @@ class assignment:
 
         # Start looking for colors
         print "LOOKING..."
-        if M_blue['m00'] > 0 and not self.blue_found:
-            self.move_client.cancel_goal()
-            self.moving = True
-            print("Found blue!")
-            print(M_blue['m00'])
+        self.move_client.cancel_goals_at_and_before_time(rospy.Time.now())
 
-            self.blue_found = True
-
-            cx = int(M_blue['m10']/M_blue['m00'])
-            cy = int(M_blue['m01']/M_blue['m00'])
-
-            print cx
-
-            err = cx - w/2
-            twist = Twist()
-            twist.linear.x = 0.4
-            twist.angular.z = -float(err) / 100
-            self.vel_pub.publish(twist)
-            self.move_to_next_point()
-        elif M_green['m00'] > 0 and not self.green_found:
-            self.move_client.cancel_goal()
-            self.moving = True
-            print("Found green!")
-            print(M_green['m00'])
-
-            self.green_found = True
-
-            cx = int(M_green['m10']/M_green['m00'])
-            cy = int(M_green['m01']/M_green['m00'])
-
-            print cx
-
-            err = cx - w/2
-            twist = Twist()
-            twist.linear.x = 0.4
-            twist.angular.z = -float(err) / 100
-            self.vel_pub.publish(twist)
-            self.move_to_next_point()
-        elif M_red['m00'] > 0 and not self.red_found:
-            self.move_client.cancel_goal()
-            self.moving = True
-            print("Found Red!")
+        while M_red['m00'] > 0 and not self.red_found:
+            #self.move_client.cancel_goals_at_and_before_time(rospy.Time.now())
+            #self.moving = True
+            img = self.current_img
+            M_red = cv2.moments(cv2.inRange(img, red[0], red[1]))
+            print("Seen Red!")
             print(M_red['m00'])
-
-            self.red_found = True
+            if M_red['m00'] > 1300000:
+                self.red_found = True
+                print("Found Red!")
+                self.move_to_next_point()
 
             cx = int(M_red['m10']/M_red['m00'])
             cy = int(M_red['m01']/M_red['m00'])
 
-            print cx
-            while M_red < 9000000.0:
-                print("Moving to red")
-                self.move_client.cancel_goal()
-                err = cx - w/2
-                twist = Twist()
-                twist.linear.x = 0.4
-                twist.angular.z = -float(err) / 100
-                self.vel_pub.publish(twist)
-                rospy.sleep(1)
-            self.move_to_next_point()
-        elif M_yellow['m00'] > 0 and not self.yellow_found:
-            self.move_client.cancel_goal()
-            self.moving = True
-            print("Found yellow!")
-            print(M_yellow['m00'])
-
-            self.yellow_found = True
-
-            cx = int(M_yellow['m10']/M_yellow['m00'])
-            cy = int(M_yellow['m01']/M_yellow['m00'])
-
-            print cx
-
+            #print cx
+            print("Moving to red")
+            #self.move_client.cancel_goal()
             err = cx - w/2
             twist = Twist()
             twist.linear.x = 0.4
             twist.angular.z = -float(err) / 100
             self.vel_pub.publish(twist)
-            self.move_to_next_point()
-        else:
-            print "FOUND NOTHING"
-            self.move_to_next_point()
+            rospy.sleep(0.1)       
+
+        if actionlib.CommState.PREEMPTING:
+            pass
+        print "FOUND NOTHING"
+        self.move_to_next_point()
+        # if M_blue['m00'] > 0 and not self.blue_found:
+        #     self.move_client.cancel_goal()
+        #     self.moving = True
+        #     print("Found blue!")
+        #     print(M_blue['m00'])
+
+        #     self.blue_found = True
+
+        #     cx = int(M_blue['m10']/M_blue['m00'])
+        #     cy = int(M_blue['m01']/M_blue['m00'])
+
+        #     print cx
+
+        #     err = cx - w/2
+        #     twist = Twist()
+        #     twist.linear.x = 0.4
+        #     twist.angular.z = -float(err) / 100
+        #     self.vel_pub.publish(twist)
+        #     self.move_to_next_point()
+        # elif M_green['m00'] > 0 and not self.green_found:
+        #     self.move_client.cancel_goal()
+        #     self.moving = True
+        #     print("Found green!")
+        #     print(M_green['m00'])
+
+        #     self.green_found = True
+
+        #     cx = int(M_green['m10']/M_green['m00'])
+        #     cy = int(M_green['m01']/M_green['m00'])
+
+        #     print cx
+
+        #     err = cx - w/2
+        #     twist = Twist()
+        #     twist.linear.x = 0.4
+        #     twist.angular.z = -float(err) / 100
+        #     self.vel_pub.publish(twist)
+        #     self.move_to_next_point()
+        # elif M_red['m00'] > 0 and not self.red_found:
+        #     self.move_client.cancel_goal()
+        #     self.moving = True
+        #     print("Found Red!")
+        #     print(M_red['m00'])
+
+        #     self.red_found = True
+
+        #     cx = int(M_red['m10']/M_red['m00'])
+        #     cy = int(M_red['m01']/M_red['m00'])
+
+        #     print cx
+        #     while M_red < 9000000.0:
+        #         print("Moving to red")
+        #         self.move_client.cancel_goal()
+        #         err = cx - w/2
+        #         twist = Twist()
+        #         twist.linear.x = 0.4
+        #         twist.angular.z = -float(err) / 100
+        #         self.vel_pub.publish(twist)
+        #         rospy.sleep(1)
+        #     self.move_to_next_point()
+        # elif M_yellow['m00'] > 0 and not self.yellow_found:
+        #     self.move_client.cancel_goal()
+        #     self.moving = True
+        #     print("Found yellow!")
+        #     print(M_yellow['m00'])
+
+        #     self.yellow_found = True
+
+        #     cx = int(M_yellow['m10']/M_yellow['m00'])
+        #     cy = int(M_yellow['m01']/M_yellow['m00'])
+
+        #     print cx
+
+        #     err = cx - w/2
+        #     twist = Twist()
+        #     twist.linear.x = 0.4
+        #     twist.angular.z = -float(err) / 100
+        #     self.vel_pub.publish(twist)
+        #     self.move_to_next_point()
+        # else:
+        #     print "FOUND NOTHING"
+        #     self.move_to_next_point()
         
     def turn_left(self):
         turn_count = 0
